@@ -36,7 +36,8 @@ download_preflight
 check_image
 readonly passed=$?
 if [[ ${passed} -eq 0 ]] && [[ "${SHOULD_SUBMIT}" == "true" ]]; then
-  submit_report
+  # submit_report
+  echo submit_report
 fi
 
 exit ${passed}
