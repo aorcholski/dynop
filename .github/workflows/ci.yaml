@@ -14,8 +14,8 @@ permissions:
 
 env:
   BRANCH: ${{ github.head_ref || github.ref_name }}
-  IMAGE_REGISTRY: ghcr.io
-  IMAGE_NAME: dynatrace/dynatrace-operator
+  IMAGE_REGISTRY: ${{ secrets.IMAGE_REGISTRY }}
+  IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
   PLATFORMS: linux/amd64,linux/arm64,linux/ppc64le,linux/s390x
   PR_PLATFORMS: linux/amd64,linux/arm64
 
@@ -269,22 +269,6 @@ jobs:
       - name: Check markdown links
         run: make markdown/link-check
 
-  prepare:
-    name: Prepare properties
-    needs: [detect-changes]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - name: Prepare build parameters
-        id: prep
-        run: |
-          hack/build/ci/prepare-build-variables.sh
-    outputs:
-      labels: ${{ steps.prep.outputs.docker_image_labels }}
-      version: ${{ steps.prep.outputs.docker_image_tag }}
-
   build-push:
     needs: [detect-changes]
     if: needs.detect-changes.outputs.is_docker_authorized && (needs.detect-changes.outputs.is_protected_branch || needs.detect-changes.outputs.go_changed || needs.detect-changes.outputs.docker_changed || needs.detect-changes.outputs.ci_changed)
@@ -299,8 +283,8 @@ jobs:
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: ${{ env.IMAGE_REGISTRY }}
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
       - name: Build image
         uses: ./.github/actions/build-push-image
         with:
@@ -309,9 +293,9 @@ jobs:
 
   run-preflight:
     name: Run preflight on ghcr.io without submitting results when merging to main
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    #if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: Release
-    needs: [build-push, prepare]
+    needs: [build-push]
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -319,8 +303,7 @@ jobs:
       - name: Run preflight
         uses: ./.github/actions/preflight
         with:
-          version: ${{ needs.prepare.outputs.version }}
-          registry: ${{ env.IMAGE_REGISTRY }}
-          repository: ${{ env.IMAGE_NAME }}
+          platforms: ${{github.ref_protected && env.PLATFORMS || env.PR_PLATFORMS }}
+          images: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}
           report-name: "preflight.json"
           should-submit: "false"

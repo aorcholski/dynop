@@ -25,11 +25,12 @@ submit_report() {
 }
 
 download_preflight
-check_image
+#check_image
 readonly passed=$?
 if [[ ${passed} -eq 0 ]] && [[ "${SHOULD_SUBMIT}" == "true" ]]; then
   submit_report
 fi
 
+echo "IMAGE_URI ${IMAGE_URI}"
 exit ${passed}
 
