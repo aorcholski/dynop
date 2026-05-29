@@ -25,5 +25,6 @@ jobs:
       RHCC_IMAGE: quay.io/${{ vars.RHCC_REPOSITORY }}
       DOCKER_IMAGE: docker.io/${{ vars.DOCKERHUB_REPOSITORY }}
     steps:
-      run: |
-        echo "images: ${{ env.RHCC_IMAGE }},${{ env.GCR_IMAGE }},${{ env.ECR_IMAGE }},${{ env.DOCKER_IMAGE }}"
+      - name: first
+        run: |
+          echo "images: ${{ env.RHCC_IMAGE }},${{ env.GCR_IMAGE }},${{ env.ECR_IMAGE }},${{ env.DOCKER_IMAGE }}"
