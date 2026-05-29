@@ -28,3 +28,34 @@ jobs:
       - name: first
         run: |
           echo "images: ${{ env.RHCC_IMAGE }},${{ env.GCR_IMAGE }},${{ env.ECR_IMAGE }},${{ env.DOCKER_IMAGE }}"
+
+  mat:
+    name: Use matrix
+    environment: Release
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        registry: [gcr, dockerhub, amazon-ecr, rhcc]
+        include:
+          - registry: gcr
+            url: gcr.io
+            repository: GCR_REPOSITORY
+            username: GCR_USERNAME
+            password: GCR_JSON_KEY
+          - registry: dockerhub
+            url: docker.io
+            repository: DOCKERHUB_REPOSITORY
+            username: DOCKERHUB_USERNAME
+            password: DOCKERHUB_PASSWORD
+          - registry: amazon-ecr
+            url: public.ecr.aws
+            repository: ECR_REPOSITORY
+          - registry: rhcc
+            url: quay.io
+            username: RHCC_USERNAME
+            password: RHCC_PASSWORD
+            repository: RHCC_REPOSITORY
+    steps:
+      - name: first
+        run: |
+          echo "images: ${{ matrix.url }}/${{ vars[matrix.repository] }}"
