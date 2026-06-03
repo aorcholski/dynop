@@ -2,8 +2,8 @@ name: Release FIPS images
 on:
   push:
     tags:
-      - v[0-9]+.[0-9]+.[0-9]+
-      - v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+ # include prerelease tags too
+      - fv[0-9]+.[0-9]+.[0-9]+
+      - fv[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+ # include prerelease tags too
 
 jobs:
   prepare:
@@ -82,6 +82,9 @@ jobs:
       attestations: write
       artifact-metadata: write
     environment: Release
+    outputs:
+      dockerhub-image: ${{ steps.image-ref.outputs.dockerhub-image }}
+      amazon-ecr-image: ${{ steps.image-ref.outputs.amazon-ecr-image }}
     strategy:
       matrix:
         registry: [dockerhub, amazon-ecr]
@@ -125,24 +128,103 @@ jobs:
           image: ${{ matrix.url }}/${{ vars[matrix.repository] }}:${{ needs.prepare.outputs.version }}@${{ steps.image-index.outputs.digest }}
           signing-key: ${{ secrets.COSIGN_PRIVATE_KEY }}
           signing-password: ${{ secrets.COSIGN_PASSWORD }}
-      - name: Create sbom for ${{matrix.registry}}
-        id: sbom
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ matrix.url }}/${{ vars[matrix.repository] }}:${{ needs.prepare.outputs.version }}@${{ steps.image-index.outputs.digest }}
-          format: 'cyclonedx'
-          output: 'result.json'
-          skip-dirs: '/usr/share/dynatrace-operator/third_party_licenses'
-          skip-files: '/usr/local/bin/dynatrace-operator'
-      - name: Upload sbom to ${{matrix.registry}}
-        uses: ./.github/actions/upload-sbom
-        with:
-          image: ${{ matrix.url }}/${{ vars[matrix.repository] }}:${{ needs.prepare.outputs.version }}@${{ steps.image-index.outputs.digest }}
-          sbom: 'result.json'
-          signing-key: ${{ secrets.COSIGN_PRIVATE_KEY }}
-          signing-password: ${{ secrets.COSIGN_PASSWORD }}
+      #- name: Create sbom for ${{matrix.registry}}
+      #  id: sbom
+      #  uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      #  with:
+      #    image-ref: ${{ matrix.url }}/${{ vars[matrix.repository] }}:${{ needs.prepare.outputs.version }}@${{ steps.image-index.outputs.digest }}
+      #    format: 'cyclonedx'
+      #    output: 'result.json'
+      #    skip-dirs: '/usr/share/dynatrace-operator/third_party_licenses'
+      #    skip-files: '/usr/local/bin/dynatrace-operator'
+      #- name: Upload sbom to ${{matrix.registry}}
+      #  uses: ./.github/actions/upload-sbom
+      #  with:
+      #    image: ${{ matrix.url }}/${{ vars[matrix.repository] }}:${{ needs.prepare.outputs.version }}@${{ steps.image-index.outputs.digest }}
+      #    sbom: 'result.json'
+      #    signing-key: ${{ secrets.COSIGN_PRIVATE_KEY }}
+      #    signing-password: ${{ secrets.COSIGN_PASSWORD }}
       - name: Add build provenance attestation for ${{ matrix.registry }}
         uses: ./.github/actions/attest-artifact
         with:
           subject-name: ${{ matrix.url }}/${{ vars[matrix.repository] }}
           subject-digest: ${{ steps.image-index.outputs.digest }}
+
+  sbom-dockerhub:
+    name: Create SBOM (DockerHub)
+    needs: [index]
+    uses: ./.github/workflows/create-sbom.yaml
+    with:
+      image: ${{ needs.index.outputs.dockerhub-image }}
+      artifact-name: sbom-fips-dockerhub
+
+  sbom-amazon-ecr:
+    name: Create SBOM (Amazon ECR)
+    needs: [index]
+    uses: ./.github/workflows/create-sbom.yaml
+    with:
+      image: ${{ needs.index.outputs.amazon-ecr-image }}
+      artifact-name: sbom-fips-amazon-ecr
+
+  upload-sbom-dockerhub:
+    name: Upload SBOM (DockerHub)
+    needs: [index, sbom-dockerhub]
+    runs-on: ubuntu-24.04
+    environment: Release
+    permissions:
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Login to Docker
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Download SBOM
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: sbom-fips-dockerhub
+      - name: Upload SBOM to DockerHub
+        uses: ./.github/actions/upload-sbom
+        with:
+          image: ${{ needs.index.outputs.dockerhub-image }}
+          sbom: result.json
+          signing-key: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          signing-password: ${{ secrets.COSIGN_PASSWORD }}
+
+  upload-sbom-amazon-ecr:
+    name: Upload SBOM (Amazon ECR)
+    needs: [index, sbom-amazon-ecr]
+    runs-on: ubuntu-24.04
+    environment: Release
+    permissions:
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Configure aws credentials
+        uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
+        with:
+          role-to-assume: ${{ secrets.ECR_IMAGEPUSH_ROLE }}
+          aws-region: us-east-1
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
+        with:
+          registry-type: public
+      - name: Download SBOM
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: sbom-fips-amazon-ecr
+      - name: Upload SBOM to Amazon ECR
+        uses: ./.github/actions/upload-sbom
+        with:
+          image: ${{ needs.index.outputs.amazon-ecr-image }}
+          sbom: result.json
+          signing-key: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          signing-password: ${{ secrets.COSIGN_PASSWORD }}
