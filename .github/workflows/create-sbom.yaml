@@ -22,11 +22,16 @@ on:
       registry-username:
         description: username for registry authentication
         required: false
+      registry-a:
+        description: aaa
+        required: false
 permissions: {}
 jobs:
   create-sbom:
     runs-on: ubuntu-24.04
     steps:
+      - name: empty step
+        run: echo "aaa ${{ secrets.registry-a }}"
       - name: Login to Registry
         if: ${{ inputs.registry != '' }}
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0

@@ -149,6 +149,7 @@ jobs:
             image: quay.io/${{ vars.SW_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
             artifact_name: release-sbom-sw
             password: SW_PASSWORD
+            aaa: a-a-a
           - registry: sw2
             image: quay.io/${{ vars.SW2_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
             artifact_name: release-sbom-sw2
@@ -161,6 +162,7 @@ jobs:
     secrets:
       registry-token: ${{ secrets[matrix.password] }}
       registry-username: ${{ secrets.SW_USERNAME }}
+      registry-a:  ${{ matrix.aaa }}
 
 #  create-sbom-sw2:
 #    name: Create SBOM
