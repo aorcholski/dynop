@@ -8,8 +8,8 @@ on:
 env:
   GOOGLE_MARKETPLACE_ANNOTATION: com.googleapis.cloudmarketplace.product.service.name=services/dynatrace-operator-dynatrace-marketplace-prod.cloudpartnerservices.goog
   #PLATFORMS: linux/amd64,linux/arm64,linux/ppc64le,linux/s390x
-  #PLATFORMS: linux/amd64,linux/arm64
-  PLATFORMS: linux/amd64
+  PLATFORMS: linux/amd64,linux/arm64
+  #PLATFORMS: linux/amd64
   DEPLOYER_PLATFORMS: linux/amd64
 
 jobs:
@@ -86,12 +86,13 @@ jobs:
           password: ${{ secrets.SW_PASSWORD }}
       - name: Build image
         id: build-image
-        uses: ./.github/actions/build-push-image
+        uses: ./.github/actions/build-push-image-local
         with:
           platforms: ${{ env.PLATFORMS }}
           #images: ${{ env.RHCC_IMAGE }},${{ env.GCR_IMAGE }},${{ env.ECR_IMAGE }},${{ env.DOCKER_IMAGE }}
           images: ${{ env.SW_IMAGE }},${{ env.SW2_IMAGE }}
           annotation: ${{ env.GOOGLE_MARKETPLACE_ANNOTATION }}
+          image-tar-artifact: release-image
     outputs:
       digest: ${{steps.build-image.outputs.digest}}
 
@@ -159,6 +160,7 @@ jobs:
       image: ${{ matrix.image }}
       artifact-name: ${{ matrix.artifact_name }}
       registry: quay.io
+      image-artifact: release-image
     secrets:
       registry-token: ${{ secrets[matrix.password] }}
       registry-username: ${{ secrets.SW_USERNAME }}

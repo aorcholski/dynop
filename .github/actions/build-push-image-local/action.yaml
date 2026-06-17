@@ -1,0 +1,105 @@
+name: Build and Push Docker Image
+description: Builds and pushes the operator docker image
+inputs:
+  platforms:
+    description: The platforms for which the image will be built
+    default: linux/amd64,linux/arm64
+    required: true
+  annotation:
+    description: The annotation added to the built image
+    required: false
+  dockerfile:
+    description: The path to the Dockerfile to be used
+    default: ./Dockerfile
+  images:
+    description: Base names of the image tags
+    required: false
+  suffix:
+    description: Suffix appended to image tags
+    required: false
+  fips:
+    description: Whether to build the image with FIPS enabled
+    default: 'false'
+    required: false
+  image-tar-artifact:
+    description: If set, also export the built image as an OCI archive and upload it under this artifact name (used for isolated SBOM scanning)
+    required: false
+    default: ''
+outputs:
+  digest:
+    description: The digest of the built image
+    value: ${{ steps.build-target.outputs.digest }}
+runs:
+  using: "composite"
+  steps:
+    - name: Build image metadata
+      uses: ./.github/actions/metadata
+      id: meta
+      with:
+        platforms: ${{ inputs.platforms }}
+        annotation: ${{ inputs.annotation }}
+        images: ${{ inputs.images }}
+        suffix: ${{ inputs.suffix }}
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+    - name: Set up Golang
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+      with:
+        go-version: 'stable' # Latest stable version
+        cache: false
+    - name: Download third party licenses
+      shell: bash
+      run: |
+        hack/build/ci/third-party-licenses.sh
+    - name: Prepare linker args
+      id: linker-args
+      shell: bash
+      env:
+        GITHUB_SHA: ${{ github.sha }}
+        TAG_NAMES: ${{ steps.meta.outputs.tag-names }}
+      run: |
+        # Only pass the first tag to create_go_linker_args.sh
+        tag=$(echo "${TAG_NAMES}" | head -n 1)
+        go_linker_args=$(hack/build/create_go_linker_args.sh "${tag}" "${GITHUB_SHA}")
+        echo "go_linker_args=${go_linker_args}" >> $GITHUB_OUTPUT
+    - name: dbg
+      shell: bash
+      run: |
+        echo "buildx ${{ steps.buildx.outputs.name }}"
+    - name: Build target
+      id: build-target
+      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+      with:
+        builder: ${{ steps.buildx.outputs.name }}
+        build-args: |
+          GO_LINKER_ARGS=${{ steps.linker-args.outputs.go_linker_args }}
+          GOFIPS140=${{ inputs.fips == 'true' && 'v1.0.0' || 'off' }}
+          GODEBUG_ARG=${{ inputs.fips == 'true' && 'fips140=only' || '' }}
+        context: .
+        file: ${{ inputs.dockerfile }}
+        provenance: false
+        platforms: ${{ inputs.platforms }}
+        # Push to the registry, and optionally also emit a local OCI archive so
+        # the SBOM can be generated from a file instead of granting trivy
+        # registry access.
+        outputs: |
+          type=image,push=true
+          ${{ inputs.image-tar-artifact != '' && 'type=oci,dest=/tmp/image-oci.tar' || '' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: |
+          ${{ steps.meta.outputs.labels }}
+        annotations: |
+          ${{ steps.meta.outputs.annotations }}
+    - name: Upload image artifact for SBOM scanning
+      if: inputs.image-tar-artifact != ''
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ inputs.image-tar-artifact }}
+        path: /tmp/image-oci.tar
+        retention-days: 1
+    - name: dbg2
+      shell: bash
+      run: |
+        echo "digest ${{ steps.build-target.outputs.digest }}"
