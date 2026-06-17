@@ -8,7 +8,8 @@ on:
 env:
   GOOGLE_MARKETPLACE_ANNOTATION: com.googleapis.cloudmarketplace.product.service.name=services/dynatrace-operator-dynatrace-marketplace-prod.cloudpartnerservices.goog
   #PLATFORMS: linux/amd64,linux/arm64,linux/ppc64le,linux/s390x
-  PLATFORMS: linux/amd64,linux/arm64
+  #PLATFORMS: linux/amd64,linux/arm64
+  PLATFORMS: linux/amd64
   DEPLOYER_PLATFORMS: linux/amd64
 
 jobs:
@@ -149,7 +150,6 @@ jobs:
             image: quay.io/${{ vars.SW_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
             artifact_name: release-sbom-sw
             password: SW_PASSWORD
-            aaa: a-a-a
           - registry: sw2
             image: quay.io/${{ vars.SW2_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
             artifact_name: release-sbom-sw2
@@ -162,7 +162,6 @@ jobs:
     secrets:
       registry-token: ${{ secrets[matrix.password] }}
       registry-username: ${{ secrets.SW_USERNAME }}
-      registry-a:  ${{ matrix.aaa }}
 
 #  create-sbom-sw2:
 #    name: Create SBOM
@@ -183,10 +182,63 @@ jobs:
 #      registry-token: ${{ secrets.SW_PASSWORD }}
 #      registry-username: ${{ secrets.SW_USERNAME }}
 
+  image-output-test:
+    name: Create image-output
+    needs: [prepare, create-sbom]
+    runs-on: ubuntu-24.04
+    permissions: {}
+    environment: Release
+    outputs:
+      dockerhub-image: ${{ steps.image-ref.outputs.sw-image }}
+      amazon-ecr-image: ${{ steps.image-ref.outputs.sw2-image }}
+    strategy:
+      matrix:
+        registry: [sw,sw2]
+        include:
+          - registry: sw
+            image: quay.io/${{ vars.SW_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
+            artifact_name: release-sbom-sw
+            password: SW_PASSWORD
+          - registry: sw2
+            image: quay.io/${{ vars.SW2_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
+            artifact_name: release-sbom-sw2
+            password: SW_PASSWORD
+    steps:
+      - name: Set image reference output for ${{ matrix.registry }}
+        id: image-ref
+        run: echo "${{ matrix.registry }}-image=${{ matrix.image }}" >> $GITHUB_OUTPUT
+
+  image-output-test-dummy:
+    name: Create image-output
+    needs: [prepare, create-sbom]
+    runs-on: ubuntu-24.04
+    permissions: {}
+    environment: Release
+    outputs:
+      dummy-dockerhub-image: ${{ steps.image-ref.outputs.sw-image }}
+      dummy-amazon-ecr-image: ${{ steps.image-ref.outputs.sw2-image }}
+    strategy:
+      matrix:
+        registry: [sw,sw2]
+        include:
+          - registry: sw
+            image: quay.io/${{ vars.SW_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
+            artifact_name: release-sbom-sw
+            password: SW_PASSWORD
+          - registry: sw2
+            image: quay.io/${{ vars.SW2_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
+            artifact_name: release-sbom-sw2
+            password: SW_PASSWORD
+    steps:
+      - name: Set image reference output for ${{ matrix.registry }}
+        id: image-ref
+        run: echo "${{ matrix.registry }}-image-dummy=${{ matrix.image }}-dummy" >> $GITHUB_OUTPUT
+
+
   signing:
     name: Sign the image index/manifests + Add SBOM
     environment: Release
-    needs: [prepare, build-push, create-sbom]
+    needs: [prepare, build-push, create-sbom, image-output-test, image-output-test-dummy]
     runs-on: ubuntu-24.04
     permissions:
       id-token: write
@@ -222,6 +274,10 @@ jobs:
             url: quay.io
             repository: SW2_REPOSITORY
     steps:
+      - name: output
+        run: |
+          echo "Image reference: ${{ needs.image-output-test.outputs.dockerhub-image }}"
+          echo "Image reference: ${{ needs.image-output-test.outputs.amazon-ecr-image }}"
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
