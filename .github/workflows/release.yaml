@@ -92,7 +92,7 @@ jobs:
           #images: ${{ env.RHCC_IMAGE }},${{ env.GCR_IMAGE }},${{ env.ECR_IMAGE }},${{ env.DOCKER_IMAGE }}
           images: ${{ env.SW_IMAGE }},${{ env.SW2_IMAGE }}
           annotation: ${{ env.GOOGLE_MARKETPLACE_ANNOTATION }}
-          image-tar-artifact: release-image
+#          image-tar-artifact: release-image
     outputs:
       digest: ${{steps.build-image.outputs.digest}}
 
@@ -140,30 +140,82 @@ jobs:
 #        echo "image-sw=quay.io/${{ vars.SW_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}" >> $GITHUB_OUTPUT
 #        echo "image-sw2=quay.io/${{ vars.SW2_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}" >> $GITHUB_OUTPUT
 
-  create-sbom:
-    name: Create SBOM
+  copy-image-to-artifact:
+    name: Create image artifacts
+    environment: Release
     needs: [prepare, build-push]
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         registry: [sw,sw2]
         include:
           - registry: sw
             image: quay.io/${{ vars.SW_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
-            artifact_name: release-sbom-sw
+            artifact-name: release-image-sw
             password: SW_PASSWORD
           - registry: sw2
             image: quay.io/${{ vars.SW2_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
-            artifact_name: release-sbom-sw2
+            artifact-name: release-image-sw2
             password: SW_PASSWORD
-    uses: ./.github/workflows/create-sbom.yaml
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+    - name: Copy image to artifact for ${{ matrix.registry }}
+      uses: ./.github/actions/copy-image-to-artifact
+      with:
+        image: ${{ matrix.image }}
+        artifact-name: ${{ matrix.artifact-name }}
+        registry: quay.io
+        registry-token: ${{ secrets[matrix.password] }}
+        registry-username: ${{ secrets.SW_USERNAME }}
+
+  create-sbom:
+    name: Create SBOM
+    needs: [prepare, build-push,copy-image-to-artifact]
+    strategy:
+      matrix:
+        registry: [sw,sw2]
+        include:
+          - registry: sw
+            image: quay.io/${{ vars.SW_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
+            sbom-artifact-name: release-sbom-sw
+            image-artifact-name: release-image-sw
+          - registry: sw2
+            image: quay.io/${{ vars.SW2_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
+            sbom-artifact-name: release-sbom-sw2
+            image-artifact-name: release-image-sw2
+    uses: ./.github/workflows/create-sbom-local.yaml
     with:
       image: ${{ matrix.image }}
-      artifact-name: ${{ matrix.artifact_name }}
-      registry: quay.io
-      image-artifact: release-image
-    secrets:
-      registry-token: ${{ secrets[matrix.password] }}
-      registry-username: ${{ secrets.SW_USERNAME }}
+      sbom-artifact-name: ${{ matrix.sbom-artifact-name }}
+      image-artifact-name: ${{ matrix.image-artifact-name }}
+
+#  create-sbom:
+#    name: Create SBOM
+#    needs: [prepare, build-push]
+#    strategy:
+#      matrix:
+#        registry: [sw,sw2]
+#        include:
+#          - registry: sw
+#            image: quay.io/${{ vars.SW_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
+#            artifact_name: release-sbom-sw
+#            password: SW_PASSWORD
+#          - registry: sw2
+#            image: quay.io/${{ vars.SW2_REPOSITORY }}:${{ needs.prepare.outputs.version }}@${{ needs.build-push.outputs.digest }}
+#            artifact_name: release-sbom-sw2
+#            password: SW_PASSWORD
+#    uses: ./.github/workflows/create-sbom.yaml
+#    with:
+#      image: ${{ matrix.image }}
+#      artifact-name: ${{ matrix.artifact_name }}
+#      registry: quay.io
+#      image-artifact: release-image
+#    secrets:
+#      registry-token: ${{ secrets[matrix.password] }}
+#      registry-username: ${{ secrets.SW_USERNAME }}
 
 #  create-sbom-sw2:
 #    name: Create SBOM

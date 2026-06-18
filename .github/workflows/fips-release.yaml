@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
       - name: Prepare build parameters
@@ -44,32 +44,41 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
-      - name: Login to Docker
+#      - name: Login to Docker
+#        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+#        with:
+#          registry: docker.io
+#          username: ${{ secrets.DOCKERHUB_USERNAME }}
+#          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+#      - name: Configure aws credentials
+#        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+#        with:
+#          role-to-assume: ${{ secrets.ECR_IMAGEPUSH_ROLE }}
+#          aws-region: us-east-1
+#      - name: Login to Amazon ECR
+#        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+#        with:
+#          registry-type: public
+      - name: Login to SW registry
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
-          registry: docker.io
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-      - name: Configure aws credentials
-        uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
-        with:
-          role-to-assume: ${{ secrets.ECR_IMAGEPUSH_ROLE }}
-          aws-region: us-east-1
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
-        with:
-          registry-type: public
+          registry: quay.io
+          username: ${{ secrets.SW_USERNAME }}
+          password: ${{ secrets.SW_PASSWORD }}
       - name: Build ${{ matrix.platform }} image
         uses: ./.github/actions/build-push-image
         env:
-            ECR_IMAGE: public.ecr.aws/${{ vars.ECR_REPOSITORY }}
-            DOCKER_IMAGE: docker.io/${{ vars.DOCKERHUB_REPOSITORY }}
+#          ECR_IMAGE: public.ecr.aws/${{ vars.ECR_REPOSITORY }}
+#          DOCKER_IMAGE: docker.io/${{ vars.DOCKERHUB_REPOSITORY }}
+          SW_IMAGE:  quay.io/${{ vars.SW_REPOSITORY }}
+          SW2_IMAGE:  quay.io/${{ vars.SW2_REPOSITORY }}
         with:
           platforms: ${{ matrix.platform }}
-          images: ${{ env.DOCKER_IMAGE }},${{ env.ECR_IMAGE }}
+#          images: ${{ env.DOCKER_IMAGE }},${{ env.ECR_IMAGE }}
+          images: ${{ env.SW_IMAGE }},${{ env.SW2_IMAGE }}
           suffix: ${{ matrix.image-postfix }}
           dockerfile: ./fips.Dockerfile
 
@@ -79,42 +88,63 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       id-token: write
-      attestations: write
-      artifact-metadata: write
     environment: Release
     outputs:
-      dockerhub-image: ${{ steps.image-ref.outputs.dockerhub-image }}
-      amazon-ecr-image: ${{ steps.image-ref.outputs.amazon-ecr-image }}
+#      dockerhub-image: ${{ steps.image-ref.outputs.dockerhub-image }}
+#      amazon-ecr-image: ${{ steps.image-ref.outputs.amazon-ecr-image }}
+#      dockerhub-digest: ${{ steps.export-digest.outputs.dockerhub-digest }}
+#      amazon-ecr-digest: ${{ steps.export-digest.outputs.amazon-ecr-digest }}
+      sw-image: ${{ steps.image-ref.outputs.sw-image }}
+      sw-digest: ${{ steps.export-digest.outputs.sw-digest }}
+      sw2-image: ${{ steps.image-ref.outputs.sw2-image }}
+      sw2-digest: ${{ steps.export-digest.outputs.sw2-digest }}
     strategy:
       matrix:
-        registry: [dockerhub, amazon-ecr]
+#        registry: [dockerhub, amazon-ecr]
+        registry: [sw, sw2]
         include:
-          - registry: dockerhub
-            url: docker.io
-            repository: DOCKERHUB_REPOSITORY
-          - registry: amazon-ecr
-            url: public.ecr.aws
-            repository: ECR_REPOSITORY
+#          - registry: dockerhub
+#            url: docker.io
+#            repository: DOCKERHUB_REPOSITORY
+#          - registry: amazon-ecr
+#            url: public.ecr.aws
+#            repository: ECR_REPOSITORY
+          - registry: sw
+            url: quay.io
+            repository: ${{ vars.SW_REPOSITORY }}
+            username: SW_USERNAME
+            password: SW_PASSWORD
+          - registry: sw2
+            url: quay.io
+            repository: ${{vars.SW2_REPOSITORY }}
+            username: SW_USERNAME
+            password: SW_PASSWORD
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
+#      - name: Login to Docker
+#        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+#        with:
+#          registry: docker.io
+#          username: ${{ secrets.DOCKERHUB_USERNAME }}
+#          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+#      - name: Configure aws credentials
+#        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+#        with:
+#          role-to-assume: ${{ secrets.ECR_IMAGEPUSH_ROLE }}
+#          aws-region: us-east-1
+#      - name: Login to Amazon ECR
+#        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+#        with:
+#          registry-type: public
       - name: Login to Docker
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
-          registry: docker.io
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-      - name: Configure aws credentials
-        uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
-        with:
-          role-to-assume: ${{ secrets.ECR_IMAGEPUSH_ROLE }}
-          aws-region: us-east-1
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
-        with:
-          registry-type: public
+          registry: quay.io
+          username: ${{ secrets[matrix.username] }}
+          password: ${{ secrets[matrix.password] }}
       - name: Create image-index manifest for ${{matrix.registry}}
         id: image-index
         env:
@@ -122,109 +152,177 @@ jobs:
         shell: bash
         run: |
           hack/build/ci/create-image-index.sh "${IMAGE}"
-      - name: Sign images for ${{matrix.registry}}
-        uses: ./.github/actions/sign-image
-        with:
-          image: ${{ matrix.url }}/${{ vars[matrix.repository] }}:${{ needs.prepare.outputs.version }}@${{ steps.image-index.outputs.digest }}
-          signing-key: ${{ secrets.COSIGN_PRIVATE_KEY }}
-          signing-password: ${{ secrets.COSIGN_PASSWORD }}
-      #- name: Create sbom for ${{matrix.registry}}
-      #  id: sbom
-      #  uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-      #  with:
-      #    image-ref: ${{ matrix.url }}/${{ vars[matrix.repository] }}:${{ needs.prepare.outputs.version }}@${{ steps.image-index.outputs.digest }}
-      #    format: 'cyclonedx'
-      #    output: 'result.json'
-      #    skip-dirs: '/usr/share/dynatrace-operator/third_party_licenses'
-      #    skip-files: '/usr/local/bin/dynatrace-operator'
-      #- name: Upload sbom to ${{matrix.registry}}
-      #  uses: ./.github/actions/upload-sbom
-      #  with:
-      #    image: ${{ matrix.url }}/${{ vars[matrix.repository] }}:${{ needs.prepare.outputs.version }}@${{ steps.image-index.outputs.digest }}
-      #    sbom: 'result.json'
-      #    signing-key: ${{ secrets.COSIGN_PRIVATE_KEY }}
-      #    signing-password: ${{ secrets.COSIGN_PASSWORD }}
-      - name: Add build provenance attestation for ${{ matrix.registry }}
-        uses: ./.github/actions/attest-artifact
-        with:
-          subject-name: ${{ matrix.url }}/${{ vars[matrix.repository] }}
-          subject-digest: ${{ steps.image-index.outputs.digest }}
+      - name: Export digest for ${{matrix.registry}}
+        id: export-digest
+        env:
+          IMAGE_DIGEST: ${{ steps.image-index.outputs.digest }}
+        run: echo "${{ matrix.registry }}-digest=${IMAGE_DIGEST}" >> $GITHUB_OUTPUT
+#      - name: Sign images for ${{matrix.registry}}
+#        uses: ./.github/actions/sign-image
+#        with:
+#          image: ${{ matrix.url }}/${{ vars[matrix.repository] }}:${{ needs.prepare.outputs.version }}@${{ steps.image-index.outputs.digest }}
+#          signing-key: ${{ secrets.COSIGN_PRIVATE_KEY }}
+#          signing-password: ${{ secrets.COSIGN_PASSWORD }}
+      - name: Set image reference output for ${{ matrix.registry }}
+        id: image-ref
+        env:
+          IMAGE_REF: ${{ matrix.url }}/${{ vars[matrix.repository] }}:${{ needs.prepare.outputs.version }}-fips@${{ steps.image-index.outputs.digest }}
+        run: echo "${{ matrix.registry }}-image=${IMAGE_REF}" >> $GITHUB_OUTPUT
 
-  sbom-dockerhub:
-    name: Create SBOM (DockerHub)
-    needs: [index]
-    uses: ./.github/workflows/create-sbom.yaml
-    with:
-      image: ${{ needs.index.outputs.dockerhub-image }}
-      artifact-name: sbom-fips-dockerhub
-
-  sbom-amazon-ecr:
-    name: Create SBOM (Amazon ECR)
-    needs: [index]
-    uses: ./.github/workflows/create-sbom.yaml
-    with:
-      image: ${{ needs.index.outputs.amazon-ecr-image }}
-      artifact-name: sbom-fips-amazon-ecr
-
-  upload-sbom-dockerhub:
-    name: Upload SBOM (DockerHub)
-    needs: [index, sbom-dockerhub]
-    runs-on: ubuntu-24.04
+  create-image-artifacts:
+    name: Create image artifacts
     environment: Release
-    permissions:
-      id-token: write
+    needs: [prepare, build-images]
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+#        registry: [dockerhub, amazon-ecr]
+#        include:
+#          - registry: dockerhub
+#            image: ${{ needs.index.outputs.dockerhub-image }}
+#            url: docker.io
+#            username: DOCKERHUB_USERNAME
+#            password: DOCKERHUB_PASSWORD
+#          - registry: amazon-ecr
+#            image: ${{ needs.index.outputs.amazon-ecr-image }}
+#            url: public.ecr.aws
+#            password: ECR_IMAGEPUSH_ROLE
+        registry: [sw,sw2]
+        include:
+          - registry: sw
+            image: ${{ needs.index.outputs.sw-image }}
+            url: quay.io
+            artifact-name: release-image-sw
+            username: SW_USERNAME
+            password: SW_PASSWORD
+          - registry: sw2
+            image: ${{ needs.index.outputs.sw2-image }}
+            url: quay.io
+            artifact-name: release-image-sw2
+            username: SW_USERNAME
+            password: SW_PASSWORD
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: Login to Docker
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+      - name: Copy image to artifact for ${{ matrix.registry }}
+        uses: ./.github/actions/copy-image-to-artifact
         with:
-          registry: docker.io
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-      - name: Download SBOM
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          name: sbom-fips-dockerhub
-      - name: Upload SBOM to DockerHub
-        uses: ./.github/actions/upload-sbom
-        with:
-          image: ${{ needs.index.outputs.dockerhub-image }}
-          sbom: result.json
-          signing-key: ${{ secrets.COSIGN_PRIVATE_KEY }}
-          signing-password: ${{ secrets.COSIGN_PASSWORD }}
+          image:  ${{ matrix.image }}
+          artifact-name: fips-image-${{ matrix.registry }}
+          registry: ${{ matrix.url }}
+          registry-token: ${{ secrets[matrix.password] }}
+          registry-username: ${{ secrets[matrix.username] }}
 
-  upload-sbom-amazon-ecr:
-    name: Upload SBOM (Amazon ECR)
-    needs: [index, sbom-amazon-ecr]
-    runs-on: ubuntu-24.04
-    environment: Release
-    permissions:
-      id-token: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-      - name: Configure aws credentials
-        uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
-        with:
-          role-to-assume: ${{ secrets.ECR_IMAGEPUSH_ROLE }}
-          aws-region: us-east-1
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
-        with:
-          registry-type: public
-      - name: Download SBOM
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          name: sbom-fips-amazon-ecr
-      - name: Upload SBOM to Amazon ECR
-        uses: ./.github/actions/upload-sbom
-        with:
-          image: ${{ needs.index.outputs.amazon-ecr-image }}
-          sbom: result.json
-          signing-key: ${{ secrets.COSIGN_PRIVATE_KEY }}
-          signing-password: ${{ secrets.COSIGN_PASSWORD }}
+  create-sbom:
+    name: Create SBOM
+    needs: [index, create-image-artifacts]
+    permissions: {}
+    strategy:
+      matrix:
+        registry: [dockerhub, amazon-ecr]
+        include:
+#          - registry: dockerhub
+#            image: ${{ needs.index.outputs.dockerhub-image }}
+#          - registry: amazon-ecr
+#            image: ${{ needs.index.outputs.amazon-ecr-image }}
+          - registry: sw
+            image: ${{ needs.index.outputs.sw-image }}
+          - registry: sw2
+            image: ${{ needs.index.outputs.sw2-image }}
+    uses: ./.github/workflows/create-sbom-local.yaml
+    with:
+      image: ${{ matrix.image }}
+      sbom-artifact-name:  fips-sbom-${{ matrix.registry }}
+      image-artifact-name: fips-image-${{ matrix.registry }}
+
+#  upload-sbom-attest-dockerhub:
+#    name: Upload SBOM (DockerHub)
+#    needs: [index, create-sbom]
+#    runs-on: ubuntu-24.04
+#    environment: Release
+#    permissions:
+#      id-token: write
+#      attestations: write
+#    strategy:
+#      matrix:
+#        registry: [dockerhub]
+#        include:
+#          - registry: dockerhub
+#            url: docker.io
+#            repository: DOCKERHUB_REPOSITORY
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+#        with:
+#          persist-credentials: false
+#      - name: Login to Docker
+#        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+#        with:
+#          registry: docker.io
+#          username: ${{ secrets.DOCKERHUB_USERNAME }}
+#          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+#      - name: Download SBOM
+#        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+#        with:
+#          name: fips-sbom-dockerhub
+#      - name: Upload SBOM to DockerHub
+#        uses: ./.github/actions/upload-sbom
+#        with:
+#          image: ${{ needs.index.outputs.dockerhub-image }}
+#          sbom: result.json
+#          signing-key: ${{ secrets.COSIGN_PRIVATE_KEY }}
+#          signing-password: ${{ secrets.COSIGN_PASSWORD }}
+#      - name: Add build provenance attestation for ${{ matrix.registry }}
+#        uses: ./.github/actions/attest-artifact
+#        with:
+#          subject-name: ${{ matrix.url }}/${{ vars[matrix.repository] }}
+#          subject-digest: ${{ needs.index.outputs.dockerhub-digest }}
+#
+#  upload-sbom-attest-amazon-ecr:
+#    name: Upload SBOM (Amazon ECR)
+#    needs: [index, create-sbom]
+#    runs-on: ubuntu-24.04
+#    environment: Release
+#    permissions:
+#      id-token: write
+#      attestations: write
+#      artifact-metadata: write
+#    strategy:
+#      matrix:
+#        registry: [amazon-ecr]
+#        include:
+#          - registry: amazon-ecr
+#            url: public.ecr.aws
+#            repository: ECR_REPOSITORY
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+#        with:
+#          persist-credentials: false
+#      - name: Configure aws credentials
+#        uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
+#        with:
+#          role-to-assume: ${{ secrets.ECR_IMAGEPUSH_ROLE }}
+#          aws-region: us-east-1
+#      - name: Login to Amazon ECR
+#        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
+#        with:
+#          registry-type: public
+#      - name: Download SBOM
+#        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+#        with:
+#          name: fips-sbom-amazon-ecr
+#      - name: Upload SBOM to Amazon ECR
+#        uses: ./.github/actions/upload-sbom
+#        with:
+#          image: ${{ needs.index.outputs.amazon-ecr-image }}
+#          sbom: result.json
+#          signing-key: ${{ secrets.COSIGN_PRIVATE_KEY }}
+#          signing-password: ${{ secrets.COSIGN_PASSWORD }}
+#      - name: Add build provenance attestation for ${{ matrix.registry }}
+#        uses: ./.github/actions/attest-artifact
+#        with:
+#          subject-name: ${{ matrix.url }}/${{ vars[matrix.repository] }}
+#          subject-digest: ${{ needs.index.outputs.amazon-ecr-digest }}

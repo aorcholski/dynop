@@ -21,10 +21,10 @@ inputs:
     description: Whether to build the image with FIPS enabled
     default: 'false'
     required: false
-  image-tar-artifact:
-    description: If set, also export the built image as an OCI archive and upload it under this artifact name (used for isolated SBOM scanning)
-    required: false
-    default: ''
+#  image-tar-artifact:
+#    description: If set, also export the built image as an OCI archive and upload it under this artifact name (used for isolated SBOM scanning)
+#    required: false
+#    default: ''
 outputs:
   digest:
     description: The digest of the built image
@@ -86,19 +86,19 @@ runs:
         # registry access.
         outputs: |
           type=image,push=true
-          ${{ inputs.image-tar-artifact != '' && 'type=oci,dest=/tmp/image-oci.tar' || '' }}
+#          ${{ inputs.image-tar-artifact != '' && 'type=oci,dest=/tmp/image-oci.tar' || '' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: |
           ${{ steps.meta.outputs.labels }}
         annotations: |
           ${{ steps.meta.outputs.annotations }}
-    - name: Upload image artifact for SBOM scanning
-      if: inputs.image-tar-artifact != ''
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-      with:
-        name: ${{ inputs.image-tar-artifact }}
-        path: /tmp/image-oci.tar
-        retention-days: 1
+#    - name: Upload image artifact for SBOM scanning
+#      if: inputs.image-tar-artifact != ''
+#      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+#      with:
+#        name: ${{ inputs.image-tar-artifact }}
+#        path: /tmp/image-oci.tar
+#        retention-days: 1
     - name: dbg2
       shell: bash
       run: |
