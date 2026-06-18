@@ -1,9 +1,15 @@
 name: Nightly build
 
+#on:
+#  schedule:
+#    # every work day at 00:00 UTC
+#    - cron: 0 0 * * 1-5
+
 on:
-  schedule:
-    # every work day at 00:00 UTC
-    - cron: 0 0 * * 1-5
+  push:
+    tags:
+      - nv[0-9]+.[0-9]+.[0-9]+
+      - nv[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+ # include prerelease tags too
 
 env:
   IMAGE_REGISTRY: ghcr.io
